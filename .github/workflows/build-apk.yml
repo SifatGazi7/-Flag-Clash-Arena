@@ -31,6 +31,29 @@ jobs:
           fi
           echo "PROJECT_DIR=$PROJECT_DIR" >> "$GITHUB_ENV"
 
+      - name: Fix Java Kotlin compatibility
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          import os, re
+
+          p = Path(os.environ["PROJECT_DIR"]) / "app" / "build.gradle.kts"
+          s = p.read_text()
+
+          s = s.replace("JavaVersion.VERSION_1_8", "JavaVersion.VERSION_17")
+          s = s.replace("JavaVersion.VERSION_1_7", "JavaVersion.VERSION_17")
+
+          if not re.search(r'compileOptions\s*\{', s):
+              s = re.sub(
+                  r'(android\s*\{)',
+                  r'\1\n    compileOptions {\n        sourceCompatibility = JavaVersion.VERSION_17\n        targetCompatibility = JavaVersion.VERSION_17\n    }',
+                  s, count=1
+              )
+
+          p.write_text(s)
+          print("Java compatibility updated to 17")
+          PY
+
       - name: Set up Java
         uses: actions/setup-java@v4
         with:
@@ -42,12 +65,12 @@ jobs:
         with:
           gradle-version: '8.9'
 
-      - name: Accept licenses and install Android SDK
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Accept licenses and install SDK
         run: |
           SDKMANAGER="$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager"
-          if [ ! -x "$SDKMANAGER" ]; then
-            SDKMANAGER="$(command -v sdkmanager)"
-          fi
           yes | "$SDKMANAGER" --licenses || true
           "$SDKMANAGER" "platforms;android-35" "build-tools;35.0.0"
 
